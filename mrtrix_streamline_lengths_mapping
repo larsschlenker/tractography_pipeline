@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# create matrix with average streamline length
+#for_each ../data/* : tck2connectome -symmetric -zero_diagonal -scale_length -stat_edge mean -tck_weights_in IN/mrtrix/tck_weights.txt IN/mrtrix/tracks_100M.tck IN/mrtrix/desikan_parcels_coreg.mif IN/mrtrix/mean_streamline_lengths_desikan.csv
+
+# create matrix with average streamline length (dynamic seeding)
+for_each ../data/* : tck2connectome -symmetric -zero_diagonal -scale_length -stat_edge mean -tck_weights_in IN/mrtrix/dyn_tck_weights.txt IN/mrtrix/dyn_tracks_100M.tck IN/mrtrix/desikan_parcels_coreg.mif IN/mrtrix/dyn_mean_streamline_lengths_desikan.csv

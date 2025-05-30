@@ -1,0 +1,11 @@
+#!/bin/bash
+
+
+# >>> All <<<
+# runs all mrtrix scripts, for preprocessing, tractography, connectome construction, streamline-length- and dti-scalar-mapping
+
+bash mrtrix_preproc_all
+bash mrtrix_tractography_dynamic
+bash mrtrix_connectome_construction
+bash mrtrix_streamline_lengths_mapping
+bash mrtrix_dti_scalar_mapping

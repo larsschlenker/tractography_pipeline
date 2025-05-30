@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# <<< Dynamic Tractography >>>
+
+# generate streamlines
+for_each ../data/* : tckgen -act IN/mrtrix/5tt_coreg.mif -backtrack -seed_dynamic IN/mrtrix/wmfod_norm.mif -select 100M IN/mrtrix/wmfod_norm.mif IN/mrtrix/dyn_tracks_100M.tck
+
+# take subset for quality assessment 
+for_each ../data/* : tckedit IN/mrtrix/dyn_tracks_100M.tck -number 200k IN/mrtrix/dyn_tracks_200k.tck
+
+# sift2 (filtering)
+for_each ../data/* : tcksift2 -act IN/mrtrix/5tt_coreg.mif -out_mu IN/mrtrix/dyn_sift2_mu.txt -out_coeffs IN/mrtrix/dyn_sift2_coeffs.txt IN/mrtrix/dyn_tracks_100M.tck IN/mrtrix/wmfod_norm.mif IN/mrtrix/dyn_tck_weights.txt
+
+

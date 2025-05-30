@@ -1,0 +1,105 @@
+#!/bin/bash
+
+# for_each ../data/* : mrview IN/*T1*.gz  --> Structure for for_each commands
+# *_dMRI_dir98_AP_*.nii.gz  --> example for file naming
+
+
+for_each ../data/* : mkdir IN/mrtrix
+
+
+# <<< DWI Preprocessing >>>
+
+# convert raw dwi data to mif and add bvec and bval to it
+for_each ../data/* : mrconvert IN/*_dMRI_dir98_AP_*.nii.gz IN/mrtrix/dwi.mif -fslgrad IN/*_dMRI_dir98_AP_*.bvec IN/*_dMRI_dir98_AP_*.bval
+
+# denoise the dwi data
+for_each ../data/* : dwidenoise IN/mrtrix/dwi.mif IN/mrtrix/dwi_den.mif -noise IN/mrtrix/noise.mif
+
+# calculate residuals 
+for_each ../data/* : mrcalc IN/mrtrix/dwi.mif IN/mrtrix/dwi_den.mif -subtract IN/mrtrix/residual.mif
+
+
+# unringing
+for_each ../data/* : mrdegibbs IN/mrtrix/dwi_den.mif IN/mrtrix/dwi_den_unr.mif  -axes 0,1  # axes 0,1 refers to axial slices!
+# calculate difference between denoised and the unringed image
+for_each ../data/* : mrcalc IN/mrtrix/dwi_den.mif IN/mrtrix/dwi_den_unr.mif -subtract IN/mrtrix/residual_unr.mif
+
+
+# motion and distortion correction
+for_each ../data/* : mrconvert IN/*_SpinEchoFieldMap_AP_*.nii.gz IN/mrtrix/SpinEchoFieldMap_AP.mif
+# there are often 3 volumes in there; choose first volume from spin echo field map PA
+for_each ../data/* : mrconvert IN/*_SpinEchoFieldMap_PA_*.nii.gz IN/mrtrix/SpinEchoFieldMap_PA.mif -force
+for_each ../data/* : mrconvert IN/mrtrix/SpinEchoFieldMap_PA.mif -coord 3 0 -axes 0,1,2 IN/mrtrix/SpinEchoFieldMap_PA.mif -force
+for_each ../data/* : mrcat IN/mrtrix/SpinEchoFieldMap_AP.mif IN/mrtrix/SpinEchoFieldMap_PA.mif -axis 3 IN/mrtrix/b0_pair.mif
+for_each ../data/* : dwifslpreproc IN/mrtrix/dwi_den_unr.mif IN/mrtrix/dwi_den_unr_preproc.mif -pe_dir AP -rpe_pair -se_epi IN/mrtrix/b0_pair.mif -eddy_options " --slm=linear"
+
+
+# bias field correction - check if this results leads to better brain mask estimation!
+for_each ../data/* : dwibiascorrect ants IN/mrtrix/dwi_den_unr_preproc.mif IN/mrtrix/dwi_den_unr_preproc_unbiased.mif -bias IN/mrtrix/bias.mif
+
+
+# brain mask estimation with FSL bet2 --> better than MRtrix algorithm (no holes)
+for_each ../data/* : mrconvert IN/mrtrix/dwi_den_unr_preproc_unbiased.mif IN/mrtrix/dwi_den_unr_preproc_unbiased.nii
+for_each ../data/* : bet2 IN/mrtrix/dwi_den_unr_preproc_unbiased.nii IN/mrtrix/fsl_bet2_mask_unbiased.nii -m -f 0.3  # 0.3 relatively liberal
+for_each ../data/* : rm IN/mrtrix/fsl_bet2_mask_unbiased.nii.gz  # irrelevant file
+for_each ../data/* : mrconvert IN/mrtrix/fsl_bet2_mask_unbiased.nii_mask.nii.gz IN/mrtrix/fsl_bet2_mask_unbiased.mif
+
+for_each ../data/* : mrconvert IN/mrtrix/dwi_den_unr_preproc.mif IN/mrtrix/dwi_den_unr_preproc.nii
+for_each ../data/* : bet2 IN/mrtrix/dwi_den_unr_preproc.nii IN/mrtrix/fsl_bet2_mask.nii -m -f 0.3  # 0.3 relatively liberal
+for_each ../data/* : rm IN/mrtrix/fsl_bet2_mask.nii.gz  # irrelevant file
+for_each ../data/* : mrconvert IN/mrtrix/fsl_bet2_mask.nii_mask.nii.gz IN/mrtrix/fsl_bet2_mask.mif
+
+
+
+# <<< Tractography Preprocessing >>>
+
+# FOD - response function estimation
+for_each ../data/* : dwi2response dhollander IN/mrtrix/dwi_den_unr_preproc_unbiased.mif IN/mrtrix/wm.txt IN/mrtrix/gm.txt IN/mrtrix/csf.txt -voxels IN/mrtrix/voxels.mif
+
+
+# Estimation of Fiber Orientation Distribution (FOD)
+for_each ../data/* : dwi2fod msmt_csd IN/mrtrix/dwi_den_unr_preproc_unbiased.mif -mask IN/mrtrix/fsl_bet2_mask_unbiased.mif IN/mrtrix/wm.txt IN/mrtrix/wmfod.mif IN/mrtrix/gm.txt IN/mrtrix/gmfod.mif IN/mrtrix/csf.txt IN/mrtrix/csffod.mif
+
+for_each ../data/* : mrconvert -coord 3 0 IN/mrtrix/wmfod.mif IN/mrtrix/wmfod_1st_vol.mif
+for_each ../data/* : mrcat IN/mrtrix/csffod.mif IN/mrtrix/gmfod.mif IN/mrtrix/wmfod_1st_vol.mif IN/mrtrix/vf.mif
+for_each ../data/* : rm IN/mrtrix/wmfod_1st_vol.mif
+
+
+# Intensity Normalization
+for_each ../data/* : mtnormalise IN/mrtrix/wmfod.mif IN/mrtrix/wmfod_norm.mif IN/mrtrix/gmfod.mif IN/mrtrix/gmfod_norm.mif IN/mrtrix/csffod.mif IN/mrtrix/csffod_norm.mif -mask IN/mrtrix/fsl_bet2_mask_unbiased.mif 
+
+for_each ../data/* : mrconvert -coord 3 0 IN/mrtrix/wmfod.mif IN/mrtrix/wmfod_norm_1st_vol.mif
+for_each ../data/* : mrcat IN/mrtrix/csffod_norm.mif IN/mrtrix/gmfod_norm.mif IN/mrtrix/wmfod_norm_1st_vol.mif IN/mrtrix/vf_norm.mif
+for_each ../data/* : rm IN/mrtrix/wmfod_norm_1st_vol.mif
+
+
+# Preparing ACT
+# %%%%%%%%%%%%%%%% Run python script to move all t1 images from t1_hom_corr folder to subj folders %%%%%%%%%%%%%%%%%%%%%%
+python cp_t1_to_subj_dir.py  # only works, if t1_hom_corr folder is inside CAMINO folder next to data and scripts
+
+for_each ../data/* : mrconvert IN/t1.nii.gz IN/mrtrix/T1_raw.mif
+for_each ../data/* : 5ttgen fsl IN/mrtrix/T1_raw.mif IN/mrtrix/5tt_nocoreg.mif
+
+
+# Coregistration of T1 and 5tt image with DWI; Update: 6-12-22 see below
+for_each ../data/* : dwiextract IN/mrtrix/dwi_den_unr_preproc_unbiased.mif IN/mrtrix/dwi_bzero.mif -bzero
+for_each ../data/* : mrmath IN/mrtrix/dwi_bzero.mif mean IN/mrtrix/mean_b0_preproc.mif -axis 3
+for_each ../data/* : rm IN/mrtrix/dwi_bzero.mif
+
+for_each ../data/* : mrconvert IN/mrtrix/mean_b0_preproc.mif IN/mrtrix/mean_b0_preproc.nii.gz
+for_each ../data/* : mrconvert IN/mrtrix/T1_raw.mif IN/mrtrix/T1_raw.nii.gz
+
+# <<< Update: 6-12-22: fsl bet for skull strip, fsl epi_reg for drastically improved coregistration of T1 to DWI >>>
+for_each ../data/* : bet IN/mrtrix/mean_b0_preproc.nii.gz IN/mrtrix/mean_b0_preproc_brain.nii.gz
+for_each ../data/* : bet IN/mrtrix/T1_raw.nii.gz IN/mrtrix/T1_raw_brain.nii.gz
+for_each ../data/* : mrconvert IN/mrtrix/T1_raw_brain.nii.gz IN/mrtrix/T1_raw_brain.mif
+
+for_each ../data/* : epi_reg --epi=IN/mrtrix/mean_b0_preproc_brain.nii.gz --t1=IN/mrtrix/T1_raw.nii.gz --t1brain=IN/mrtrix/T1_raw_brain.nii.gz --out=IN/mrtrix/diff2struct_fsl
+for_each ../data/* : transformconvert IN/mrtrix/diff2struct_fsl.mat IN/mrtrix/mean_b0_preproc_brain.nii.gz IN/mrtrix/T1_raw_brain.mif flirt_import IN/mrtrix/diff2struct_mrtrix.txt
+
+for_each ../data/* : mrtransform IN/mrtrix/T1_raw.mif -linear IN/mrtrix/diff2struct_mrtrix.txt -inverse IN/mrtrix/T1_coreg.mif
+for_each ../data/* : mrtransform IN/mrtrix/5tt_nocoreg.mif -linear IN/mrtrix/diff2struct_mrtrix.txt -inverse IN/mrtrix/5tt_coreg.mif
+
+
+
+

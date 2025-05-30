@@ -1,0 +1,31 @@
+#!/bin/bash
+
+# <<< DTI Scalar Mapping >>>
+# create scalar maps and matrices with average FA, ADC (MD), AD amd RD values
+
+# create diffusion tensor image
+for_each ../data/* : dwi2tensor IN/mrtrix/dwi_den_unr_preproc_unbiased.mif IN/mrtrix/tensor.mif -mask IN/mrtrix/fsl_bet2_mask_unbiased.mif
+
+
+# create dti scalar maps
+for_each ../data/* : tensor2metric IN/mrtrix/tensor.mif -fa IN/mrtrix/FA.mif -adc IN/mrtrix/ADC.mif -ad IN/mrtrix/AD.mif -rd IN/mrtrix/RD.mif
+
+
+# create FA connectome
+for_each ../data/* : tcksample IN/mrtrix/dyn_tracks_100M.tck IN/mrtrix/FA.mif IN/mrtrix/dyn_mean_FA_per_streamline.csv -stat_tck mean
+for_each ../data/* : tck2connectome IN/mrtrix/dyn_tracks_100M.tck IN/mrtrix/desikan_parcels_coreg.mif IN/mrtrix/dyn_mean_FA_connectome_desikan.csv -symmetric -zero_diagonal -tck_weights_in IN/mrtrix/dyn_tck_weights.txt -scale_file IN/mrtrix/dyn_mean_FA_per_streamline.csv -stat_edge mean
+
+
+# create ADC connectome
+for_each ../data/* : tcksample IN/mrtrix/dyn_tracks_100M.tck IN/mrtrix/ADC.mif IN/mrtrix/dyn_mean_ADC_per_streamline.csv -stat_tck mean
+for_each ../data/* : tck2connectome IN/mrtrix/dyn_tracks_100M.tck IN/mrtrix/desikan_parcels_coreg.mif IN/mrtrix/dyn_mean_ADC_connectome_desikan.csv -symmetric -zero_diagonal -tck_weights_in IN/mrtrix/dyn_tck_weights.txt -scale_file IN/mrtrix/dyn_mean_ADC_per_streamline.csv -stat_edge mean
+
+
+# create AD connectome
+for_each ../data/* : tcksample IN/mrtrix/dyn_tracks_100M.tck IN/mrtrix/AD.mif IN/mrtrix/dyn_mean_AD_per_streamline.csv -stat_tck mean
+for_each ../data/* : tck2connectome IN/mrtrix/dyn_tracks_100M.tck IN/mrtrix/desikan_parcels_coreg.mif IN/mrtrix/dyn_mean_AD_connectome_desikan.csv -symmetric -zero_diagonal -tck_weights_in IN/mrtrix/dyn_tck_weights.txt -scale_file IN/mrtrix/dyn_mean_AD_per_streamline.csv -stat_edge mean 
+
+
+# create RD connectome
+for_each ../data/* : tcksample IN/mrtrix/dyn_tracks_100M.tck IN/mrtrix/RD.mif IN/mrtrix/dyn_mean_RD_per_streamline.csv -stat_tck mean
+for_each ../data/* : tck2connectome IN/mrtrix/dyn_tracks_100M.tck IN/mrtrix/desikan_parcels_coreg.mif IN/mrtrix/dyn_mean_RD_connectome_desikan.csv -symmetric -zero_diagonal -tck_weights_in IN/mrtrix/dyn_tck_weights.txt -scale_file IN/mrtrix/dyn_mean_RD_per_streamline.csv -stat_edge mean 

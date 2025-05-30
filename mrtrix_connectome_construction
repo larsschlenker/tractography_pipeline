@@ -1,0 +1,24 @@
+#!/bin/bash
+
+
+# >>>>> Connectome Construction <<<<<
+
+# runs python script to move aparc+aseg.mgz files to respective subject directories; python script needs to be in script folder
+python cp_fs_files_to_subj_dir.py 
+
+
+# update: 14-12-2022: FreeSurferColorLUT.txt and fs_default.txt are now in the pipeline script folder
+for_each ../data/* : labelconvert IN/aparc+aseg.mgz FreeSurferColorLUT.txt fs_default.txt IN/mrtrix/desikan_parcels.mif
+
+
+# co-register parcels file to dwi, with matrix from ealier preprocessing
+for_each ../data/* : mrtransform IN/mrtrix/desikan_parcels.mif -linear IN/mrtrix/diff2struct_mrtrix.txt -inverse -datatype uint32 IN/mrtrix/desikan_parcels_coreg.mif
+
+
+# uncomment if you did gmwm seeding tractography
+# connectome construction gmwm seeding
+#for_each ../data/* : tck2connectome -symmetric -zero_diagonal -tck_weights_in IN/mrtrix/tck_weights.txt IN/mrtrix/tracks_100M.tck IN/mrtrix/desikan_parcels_coreg.mif IN/mrtrix/desikan_connectome.csv -out_assignment IN/mrtrix/assignment_desikan_parcels.csv
+
+
+# connectome construction dynamic seeding
+for_each ../data/* : tck2connectome -symmetric -zero_diagonal -tck_weights_in IN/mrtrix/dyn_tck_weights.txt IN/mrtrix/dyn_tracks_100M.tck IN/mrtrix/desikan_parcels_coreg.mif IN/mrtrix/dyn_desikan_connectome.csv -out_assignment IN/mrtrix/dyn_assignment_desikan_parcels.csv
